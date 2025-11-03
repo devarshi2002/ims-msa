@@ -1,16 +1,20 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKER_REPO = "devarshi2002/ims-msa-jenkins"
-        SERVICES = "apigateway eureka product supplier stock order"
-    }
-
     stages {
 
         stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/devarshi2002/ims-msa.git'
+            }
+        }
+
+        // ✅ New stage: Docker Login before builds
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                }
             }
         }
 
@@ -42,9 +46,11 @@ pipeline {
         stage('Tag Docker Images') {
             steps {
                 script {
-                    def services = env.SERVICES.split()
+                    def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                    def dockerRepo = "devarshi2002/ims-msa-jenkins"
+
                     for (service in services) {
-                        bat "docker tag ims-${service}:latest ${env.DOCKER_REPO}:${service}-latest"
+                        bat "docker tag ims-${service}:latest ${dockerRepo}:${service}-latest"
                     }
                 }
             }
@@ -52,19 +58,11 @@ pipeline {
 
         stage('Push Docker Images to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        // Log in securely
-                        bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
-
-                        // Push all services
-                        def services = env.SERVICES.split()
-                        for (service in services) {
-                            bat "docker push ${env.DOCKER_REPO}:${service}-latest"
-                        }
-
-                        // Log out
-                        bat 'docker logout'
+                script {
+                    // Push images (already logged in)
+                    def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                    for (service in services) {
+                        bat "docker push devarshi2002/ims-msa-jenkins:${service}-latest"
                     }
                 }
             }
