@@ -1,42 +1,27 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub') // Jenkins stored credentials
-        DOCKERHUB_REPO = 'devarshi2002/ims-msa-jenkins'
-        COMPOSE_PROJECT_NAME = 'ims'
-    }
-
-    tools {
-        maven 'Maven3'
-        jdk 'Jdk'
-    }
-
     stages {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/devarshi2002/ims-msa.git'
+                git branch: 'main', url: 'https://github.com/devarshi2002/ims-msa.git'
             }
         }
 
         stage('Build Backend JAR Files') {
             steps {
                 dir('Backend') {
-                    script {
-                        echo "🔨 Building all microservice JARs..."
-                        bat '''
-                        for /D %%d in (*) do (
-                            if exist "%%d\\pom.xml" (
-                                echo 🔨 Building %%d microservice...
-                                pushd "%%d"
-                                call mvn clean package -DskipTests
-                                popd
-                            )
+                    bat '''
+                    for /D %%d in (*) do (
+                        if exist "%%d\\pom.xml" (
+                            echo 🔨 Building %%d microservice...
+                            pushd "%%d"
+                            call mvn clean package -DskipTests
+                            popd
                         )
-                        '''
-                    }
+                    )
+                    '''
                 }
             }
         }
@@ -44,10 +29,7 @@ pipeline {
         stage('Build Docker Images (Backend)') {
             steps {
                 dir('Backend') {
-                    script {
-                        echo "🐳 Building all backend service images using docker-compose..."
-                        bat 'docker-compose build'
-                    }
+                    bat 'docker-compose build'
                 }
             }
         }
@@ -56,8 +38,10 @@ pipeline {
             steps {
                 script {
                     def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                    def dockerRepo = "devarshi2002/ims-msa-jenkins"
+
                     for (service in services) {
-                        bat "docker tag ${COMPOSE_PROJECT_NAME}-${service}:latest ${DOCKERHUB_REPO}:${service}-latest"
+                        bat "docker tag ims-${service}:latest ${dockerRepo}:${service}-latest"
                     }
                 }
             }
@@ -65,16 +49,20 @@ pipeline {
 
         stage('Push Images to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        echo "📤 Logging in to DockerHub..."
-                        bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
+                script {
+                    // Using inline credentials for Docker login
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        bat 'echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin'
 
                         def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                        def dockerRepo = "devarshi2002/ims-msa-jenkins"
+
                         for (service in services) {
                             echo "⬆️ Pushing image for ${service}..."
-                            bat "docker push ${DOCKERHUB_REPO}:${service}-latest"
+                            bat "docker push ${dockerRepo}:${service}-latest"
                         }
+
+                        bat "docker logout"
                     }
                 }
             }
@@ -82,10 +70,7 @@ pipeline {
 
         stage('Cleanup Local Images') {
             steps {
-                script {
-                    echo "🧹 Cleaning up local images..."
-                    bat 'docker system prune -f'
-                }
+                bat 'docker system prune -f'
             }
         }
     }
@@ -95,7 +80,7 @@ pipeline {
             echo "✅ All backend images built and pushed successfully!"
         }
         failure {
-            echo "❌ Build failed. Please check logs in Jenkins console."
+            echo "❌ Build failed. Please check Jenkins console logs."
         }
     }
 }
