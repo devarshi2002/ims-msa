@@ -51,25 +51,7 @@ pipeline {
                 }
             }
         }
-
-        stage('Build Frontend Image') {
-            steps {
-                dir('Frontend/ims') {
-                    script {
-                        echo "🌐 Building frontend Docker image..."
-                        // Ensure Dockerfile exists before build
-                        bat '''
-                        if exist Dockerfile (
-                            docker build -t %DOCKERHUB_REPO%/frontend:latest .
-                        ) else (
-                            echo ❌ ERROR: No Dockerfile found in Frontend/ims
-                            exit /b 1
-                        )
-                        '''
-                    }
-                }
-            }
-        }
+       
 
         stage('Tag Docker Images') {
             steps {
@@ -96,10 +78,7 @@ pipeline {
                     for (service in services) {
                         echo "⬆️ Pushing image for ${service}..."
                         bat "docker push %DOCKERHUB_REPO%/${service}:latest"
-                    }
-
-                    echo "⬆️ Pushing frontend image..."
-                    bat "docker push %DOCKERHUB_REPO%/frontend:latest"
+                    }                    
                 }
             }
         }
@@ -116,10 +95,11 @@ pipeline {
 
     post {
         success {
-            echo "✅ All backend + frontend images built and pushed successfully!"
+            echo "✅ All backend images built and pushed successfully!"
         }
         failure {
             echo "❌ Build failed. Please check logs in Jenkins console."
         }
     }
 }
+
