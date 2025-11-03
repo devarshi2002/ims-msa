@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub')
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub')  // Jenkins credential ID
         DOCKERHUB_REPO = 'devarshi2002/ims-msa-jenkins'
         COMPOSE_PROJECT_NAME = 'ims'
     }
@@ -57,8 +57,11 @@ pipeline {
                 script {
                     def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
                     for (service in services) {
-                        // Corrected image names: dash instead of underscore
-                        bat "docker tag ${COMPOSE_PROJECT_NAME}-${service}:latest ${DOCKERHUB_REPO}:${service}-latest"
+                        def localImage = "${COMPOSE_PROJECT_NAME}-${service}:latest"
+                        def remoteImage = "${DOCKERHUB_REPO}:${service}-latest"
+
+                        echo "🏷️ Tagging ${localImage} -> ${remoteImage}"
+                        bat "docker tag ${localImage} ${remoteImage}"
                     }
                 }
             }
@@ -72,9 +75,10 @@ pipeline {
 
                     def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
                     for (service in services) {
-                        echo "⬆️ Pushing image for ${service}..."
-                        bat "docker push ${DOCKERHUB_REPO}:${service}-latest"
-                    }                    
+                        def remoteImage = "${DOCKERHUB_REPO}:${service}-latest"
+                        echo "⬆️ Pushing image: ${remoteImage}"
+                        bat "docker push ${remoteImage}"
+                    }
                 }
             }
         }
@@ -82,7 +86,7 @@ pipeline {
         stage('Cleanup Local Images') {
             steps {
                 script {
-                    echo "🧹 Cleaning up local images..."
+                    echo "🧹 Cleaning up local Docker images..."
                     bat 'docker system prune -f'
                 }
             }
