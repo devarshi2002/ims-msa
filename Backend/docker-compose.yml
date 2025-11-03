@@ -1,0 +1,101 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8
+    container_name: mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      # MYSQL_DATABASE: supplier_db
+    ports:
+      - "3306:3306"
+    networks:
+      - backend-net
+
+  eureka:
+    build: ./eureka
+    container_name: eureka-service
+    ports:
+      - "8761:8761"
+    networks:
+      - backend-net
+    depends_on:
+      - mysql
+
+  apigateway:
+    build: ./apigateway
+    container_name: apigateway-service
+    ports:
+      - "8081:8081"
+    networks:
+      - backend-net
+    depends_on:
+      - eureka
+
+  product:
+    build: ./product
+    container_name: product-service
+    ports:
+      - "8082:8082"
+    networks:
+      - backend-net
+    depends_on:
+      - mysql
+      - eureka
+
+  supplier:
+    build: ./supplier
+    container_name: supplier-service
+    ports:
+      - "8083:8083"
+    networks:
+      - backend-net
+    depends_on:
+      - mysql
+      - eureka
+
+  stock:
+    build: ./stock
+    container_name: stock-service
+    ports:
+      - "8084:8084"
+    networks:
+      - backend-net
+    depends_on:
+      - mysql
+      - eureka
+      
+  order:
+    build: ./order
+    container_name: order-service
+    ports:
+      - "8085:8085"
+    networks:
+      - backend-net
+    depends_on:
+      - mysql
+      - eureka
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-service
+    ports:
+      - "9090:9090"  
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - backend-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-service
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - backend-net
+
+networks:
+  backend-net:
+    driver: bridge

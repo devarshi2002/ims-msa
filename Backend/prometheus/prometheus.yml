@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'spring-boot-apps'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets:
+          - apigateway:8081
+          - product:8082
+          - supplier:8083
+          - stock:8084
+          - order:8085

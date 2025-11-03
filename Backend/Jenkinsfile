@@ -1,0 +1,105 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub')
+        DOCKERHUB_REPO = 'devarshi2002/ims-msa-jenkins'
+        COMPOSE_PROJECT_NAME = 'ims'
+    }
+
+    tools {
+        maven 'Maven3'
+        jdk 'JDK17'
+    }
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/devarshi2002/ims-msa.git'
+            }
+        }
+
+        stage('Build Backend JAR Files') {
+            steps {
+                dir('Backend') {
+                    script {
+                        echo "🔨 Building all microservice JARs..."
+                        // find all pom.xml and run mvn package for each
+                        bat 'for /R %f in (pom.xml) do (cd /D "%~dpf" && call mvn clean package -DskipTests)'
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Images (Backend)') {
+            steps {
+                dir('Backend') {
+                    script {
+                        echo "🐳 Building all backend service images using docker-compose..."
+                        bat 'docker-compose build'
+                    }
+                }
+            }
+        }
+
+        stage('Build Frontend Image') {
+            steps {
+                dir('Frontend/ims') {
+                    script {
+                        echo "🌐 Building frontend Docker image..."
+                        bat "docker build -t %DOCKERHUB_REPO%/frontend:latest ."
+                    }
+                }
+            }
+        }
+
+        stage('Tag Docker Images') {
+            steps {
+                script {
+                    def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                    for (service in services) {
+                        bat "docker tag ${COMPOSE_PROJECT_NAME}_${service}:latest %DOCKERHUB_REPO%/${service}:latest"
+                    }
+                }
+            }
+        }
+
+        stage('Push Images to DockerHub') {
+            steps {
+                script {
+                    echo "📤 Logging in to DockerHub..."
+                    bat 'echo %DOCKERHUB_CREDENTIALS_PSW% | docker login -u %DOCKERHUB_CREDENTIALS_USR% --password-stdin'
+
+                    def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                    for (service in services) {
+                        echo "⬆️ Pushing image for ${service}..."
+                        bat "docker push %DOCKERHUB_REPO%/${service}:latest"
+                    }
+
+                    echo "⬆️ Pushing frontend image..."
+                    bat "docker push %DOCKERHUB_REPO%/frontend:latest"
+                }
+            }
+        }
+
+        stage('Cleanup Local Images') {
+            steps {
+                script {
+                    echo "🧹 Cleaning up local images..."
+                    bat 'docker system prune -f'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ All backend + frontend images built and pushed successfully!"
+        }
+        failure {
+            echo "❌ Build failed. Please check logs in Jenkins console."
+        }
+    }
+}
