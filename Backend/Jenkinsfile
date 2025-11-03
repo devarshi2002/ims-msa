@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_REPO = "devarshi2002/ims-msa-jenkins"
+        SERVICES = "apigateway eureka product supplier stock order"
+    }
+
     stages {
 
         stage('Checkout Code') {
@@ -37,32 +42,29 @@ pipeline {
         stage('Tag Docker Images') {
             steps {
                 script {
-                    def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
-                    def dockerRepo = "devarshi2002/ims-msa-jenkins"
-
+                    def services = env.SERVICES.split()
                     for (service in services) {
-                        bat "docker tag ims-${service}:latest ${dockerRepo}:${service}-latest"
+                        bat "docker tag ims-${service}:latest ${env.DOCKER_REPO}:${service}-latest"
                     }
                 }
             }
         }
 
-        stage('Push Images to DockerHub') {
+        stage('Push Docker Images to Docker Hub') {
             steps {
-                script {
-                    // Using inline credentials for Docker login
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        bat 'echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        // Log in securely
+                        bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
 
-                        def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
-                        def dockerRepo = "devarshi2002/ims-msa-jenkins"
-
+                        // Push all services
+                        def services = env.SERVICES.split()
                         for (service in services) {
-                            echo "⬆️ Pushing image for ${service}..."
-                            bat "docker push ${dockerRepo}:${service}-latest"
+                            bat "docker push ${env.DOCKER_REPO}:${service}-latest"
                         }
 
-                        bat "docker logout"
+                        // Log out
+                        bat 'docker logout'
                     }
                 }
             }
