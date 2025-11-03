@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub')  // Jenkins credential ID
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub') // Jenkins stored credentials
         DOCKERHUB_REPO = 'devarshi2002/ims-msa-jenkins'
         COMPOSE_PROJECT_NAME = 'ims'
     }
@@ -57,11 +57,7 @@ pipeline {
                 script {
                     def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
                     for (service in services) {
-                        def localImage = "${COMPOSE_PROJECT_NAME}-${service}:latest"
-                        def remoteImage = "${DOCKERHUB_REPO}:${service}-latest"
-
-                        echo "🏷️ Tagging ${localImage} -> ${remoteImage}"
-                        bat "docker tag ${localImage} ${remoteImage}"
+                        bat "docker tag ${COMPOSE_PROJECT_NAME}-${service}:latest ${DOCKERHUB_REPO}:${service}-latest"
                     }
                 }
             }
@@ -69,15 +65,16 @@ pipeline {
 
         stage('Push Images to DockerHub') {
             steps {
-                script {
-                    echo "📤 Logging in to DockerHub..."
-                    bat "echo ${DOCKERHUB_CREDENTIALS_PSW} | docker login -u ${DOCKERHUB_CREDENTIALS_USR} --password-stdin"
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        echo "📤 Logging in to DockerHub..."
+                        bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
 
-                    def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
-                    for (service in services) {
-                        def remoteImage = "${DOCKERHUB_REPO}:${service}-latest"
-                        echo "⬆️ Pushing image: ${remoteImage}"
-                        bat "docker push ${remoteImage}"
+                        def services = ['apigateway', 'eureka', 'product', 'supplier', 'stock', 'order']
+                        for (service in services) {
+                            echo "⬆️ Pushing image for ${service}..."
+                            bat "docker push ${DOCKERHUB_REPO}:${service}-latest"
+                        }
                     }
                 }
             }
@@ -86,7 +83,7 @@ pipeline {
         stage('Cleanup Local Images') {
             steps {
                 script {
-                    echo "🧹 Cleaning up local Docker images..."
+                    echo "🧹 Cleaning up local images..."
                     bat 'docker system prune -f'
                 }
             }
