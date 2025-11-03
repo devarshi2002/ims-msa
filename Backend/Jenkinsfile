@@ -50,18 +50,7 @@ pipeline {
                     }
                 }
             }
-        }
-
-        stage('Build Frontend Image') {
-            steps {
-                dir('Frontend/ims') {
-                    script {
-                        echo "🌐 Building frontend Docker image..."
-                        bat "docker build -t ${DOCKERHUB_REPO}/frontend:latest ."
-                    }
-                }
-            }
-        }
+        }       
 
         stage('Tag Docker Images') {
             steps {
@@ -111,3 +100,4 @@ pipeline {
         }
     }
 }
+
